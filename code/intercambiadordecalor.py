@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from iapws import IAPWS95
 import math
+from thermo.chemical import Mixture
 
 ###########################################################
 ###################DECLARACION DE INPUTS###################
@@ -47,6 +48,11 @@ A_tubo_ext=pi*Outer_diameter_tube*Tube_long
 #propiedades fisicas del aire Cengel, Y. a. (2011). Transferencia de Calor y Masa Fudamentos y Aplicaciones. Termodinamica. https://doi.org/10: 0-8400-5444-0
 #validas entre 200K-1000K
 def Air_physical_properties(T):
+    #air = Mixture('air', T=T, P=101325)
+    #Prandtl_air=air.Pr
+    #Density_air=air.rho
+    #Viscosity_air=air.mu
+    #Thermal_conductivity_air=air.k
     Prandtl_air=-4.89852*pow(10,-10)*(T**3)+1.16677*pow(10,-6)*(T**2)+(-8.06463)*pow(10,-4)*T+0.856841
     Density_air=-5.41916*pow(10,-9)*pow(T,3)+1.25443*pow(10,-5)*pow(T,2)-1.004526*pow(10,-2)*T+3.23765
     Viscosity_air=1.32921*pow(10,-14)*pow(T,3)-4.10217*pow(10,-11)*pow(T,2)+6.922895*pow(10,-8)*T+9.95697*pow(10,-7)
