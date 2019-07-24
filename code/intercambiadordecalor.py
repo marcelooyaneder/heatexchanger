@@ -77,7 +77,7 @@ def Reynolds(Mass_flow,Viscosity,Diameter):
     return Reynolds
 
 def Heat_transfer_water_iteration(Re_tuberia,Prandtl):
-    Heat_transfer_water_iteration=0.023*(Re_tuberia**0.8)*(Prandtl**(0.334))
+    Heat_transfer_water_iteration=0.023*pow(Re_tuberia,0.8)*pow(Prandtl,0.334)
     return Heat_transfer_water_iteration
 
 def Chen_correlation(Densidad_l,Densidad_g,Entalpia,Conductividad,Viscosidad,T_sat,x,Outer_diameter_tube):
@@ -88,8 +88,8 @@ def Chen_correlation(Densidad_l,Densidad_g,Entalpia,Conductividad,Viscosidad,T_s
     Chen_correlation=0.725*c
     return Chen_correlation
 
-def T_wall(Chen_correlation,h_correlacion_agua,T_prom_liq,T_prom_vapor,A_tubo_ext,A_tubo_int):
-    a=A_tubo_ext*Chen_correlation*T_prom_vapor+A_tubo_int*h_correlacion_agua*T_prom_liq
+def T_wall(Chen_correlation,h_correlacion_agua,T_delta_liq,T_delta_vapor,A_tubo_ext,A_tubo_int):
+    a=A_tubo_ext*Chen_correlation*T_delta_vapor+A_tubo_int*h_correlacion_agua*T_delta_liq
     b=A_tubo_int*h_correlacion_agua+A_tubo_ext*Chen_correlation
     T_wall=a/b
     return T_wall
@@ -108,7 +108,8 @@ def DMLT(T_ea,T_sa,T_ev,T_sv):
     return DMLT
 
 def Coef_calor_sucio(A_tubo_int,DMLT,Calor_absorbido):
-    Coef_calor_sucio=14.*A_tubo_int*DMLT*0.98/(Calor_absorbido*1000.)
+    Coef_calor_sucio=14.*A_tubo_int*DMLT*0.98/(Calor_absorbido*1.) 
+    #Coef_calor_sucio=1.*A_tubo_int*DMLT*0.98/(Calor_absorbido*1000.)
     return Coef_calor_sucio
 
 
@@ -155,7 +156,7 @@ T_prom_shell=T_prom_shell[0]
 T_inf=T_inf[0]
 T_film=(T_prom_shell+T_inf)/2.
 Air_physical_properties=Air_physical_properties(T_film)
-    #np.array([Prandtl_air,Density_air,Viscosity_air,Thermal_Conductivity_air])
+#np.array([Prandtl_air,Density_air,Viscosity_air,Thermal_Conductivity_air])
 Gr=Grashof(T_prom_shell,T_inf,T_film,Outer_diameter_casquet,Air_physical_properties[[1]],Air_physical_properties[2])
 Nu_casquet=ChurchillChu(Gr,Air_physical_properties[0])
 h_casquet=Nu_casquet*Air_physical_properties[3]/Outer_diameter_casquet
@@ -170,31 +171,31 @@ print 'La eficiencia del intercambiador de calor es: ', Q_abs*100/Q_ced,'%'
 #Iteracion temperatura de pared
 error=float(input('ingresar la diferencia a calcular para la iteracion: '))
 x=T_prom_shell
-dif_t_wall=100.
+dif_t_wall=10.
 n=1
 while (dif_t_wall>=error):
     print 'iteración numero: ',n
     #Agua
     t_film_ite=(T_prom_liq+x)/2.
+    t_film_ite_steam=(T_sat+x)/2.
     print 'temperatura de film: ', t_film_ite,'[K]'
     print 'temperatura de pared: ', x,'[K]'
     sat_liquid=IAPWS95(T=t_film_ite, x=0)
     #vapor a P cte, por lo tanto temperatura constante.-
-    sat_steam=IAPWS95(P=Work_pressure_MPa, x=1)
     a=sat_liquid.Prandt
+    e=sat_liquid.k
+    #Vaporization_Enthalpy=sat_steam.h-sat_liquid.h
+    Re_tuberia=Reynolds(water_mass_flow,sat_liquid.mu,Inner_diameter_tube)
+    Nussel_correlacion_agua=Heat_transfer_water_iteration(Re_tuberia,a)
+    h_correlacion_agua=Nussel_correlacion_agua*e/Inner_diameter_tube
+    #function Chen_correlation (Density_water, density_steam,Vaporization_enthalpy,Thermal_conductivity_water,Viscosity_water,T_sat,T_prom_corasa,Outer_diameter_tube)
+    #propiedades del condensado
+    sat_liquid=IAPWS95(T=t_film_ite_steam, x=0)
     b=sat_liquid.mu
     d=sat_liquid.rho
     e=sat_liquid.k
-    Vaporization_Enthalpy=sat_steam.h-sat_liquid.h
-    Re_tuberia=Reynolds(water_mass_flow,sat_liquid.mu,Inner_diameter_tube)
-    print '*****************************************'
-    print 'Propiedades físicas Pr, mu, rho, k, lambda, Re',a,b,d,e,Vaporization_Enthalpy, Re_tuberia
-    print '*****************************************'
-    Nussel_correlacion_agua=Heat_transfer_water_iteration(Re_tuberia,a)
-    h_correlacion_agua=Nussel_correlacion_agua*e/Inner_diameter_tube
-    #Vapor, a una T_prom_liq
-    #function Chen_correlation (Density_water, density_steam,Vaporization_enthalpy,Thermal_conductivity_water,Viscosity_water,T_sat,T_prom_corasa,Outer_diameter_tube)
     h_correlacion_vapor=Chen_correlation(d,sat_steam.rho,Vaporization_Enthalpy,e,b,T_sat,x,Outer_diameter_tube)
+    #debería ser la diferencia de temperatura y no el promedio de estas.
     T_pared=T_wall(h_correlacion_vapor,h_correlacion_agua,T_prom_liq,T_prom_vapor,A_tubo_ext,A_tubo_int)
     dif_t_wall=abs(x-T_pared)
     x=T_pared
@@ -202,21 +203,23 @@ while (dif_t_wall>=error):
     n=n+1
 
 print 'La temperatura de pared de la tuberia, obtenida por iteraciones es:',x-273.15,'[°C]'
-print 'La temperatura de film es: ', t_film_ite-273.15,'[°C]'
-print 'Coeficiente de transferencia calor convectivo por vapor: ',h_correlacion_vapor,'[J/kg]'
-print 'Coeficiente de transferencia calor convectivo por liquido: ',h_correlacion_agua,'[J/kg]'
-
+print 'Coeficiente de transferencia calor convectivo por vapor: ',h_correlacion_vapor,'[W/m^2 K]'
+print 'Coeficiente de transferencia calor convectivo por liquido: ',h_correlacion_agua,'[W/m^2 K]'
+print 'Q_abs: ', -h_correlacion_agua*(T_prom_liq-x)*A_tubo_int, '[W]'
+print 'Q_ced: ', -h_correlacion_vapor*(T_prom_vapor-x)*A_tubo_ext, '[W]'
+Q_abs=h_correlacion_vapor*(T_prom_vapor-x)*A_tubo_ext
 #CALCULO COEFICIENTE GLOBAL DE TRANSFERENCIA DE CALOR LIMPIO (LA FUNCION ES 1/U_c)
 U_c=(Coef_calor_limpio(Outer_diameter_tube,Inner_diameter_tube,h_correlacion_agua,h_correlacion_vapor))**(-1.)
 print 'el coeficiente global de transferencia de calor limpio es:', U_c,'[W/m^2 K]'
     
 #CALCULO COEFICIENTE GLOBAL DE TRANSFERENCIA DE CALOR SUCIO (LA FUNCION ES 1/U_d)
-print'el valor de DMLT es:',DMLT(T_ea,T_sa,T_ev,T_sv)
-U_d=(Coef_calor_sucio(A_tubo_int,DMLT(T_ea,T_sa,T_ev,T_sv),Q_abs))**(-1.)
+DMLT=DMLT(T_ea,T_sa,T_ev,T_sv)
+print'el valor de DMLT es:', DMLT, '[°C]'
+U_d=pow(Coef_calor_sucio(A_tubo_int,DMLT,Q_abs),-1.)
 print 'el coeficiente global de transferencia de calor sucio es:', U_d,'[W/m^2 K]'
 
 #CALCULO FACTOR DE INCRUSTACION
-R_d=(U_d**(-1.))+(U_c**(-1.))
+R_d=pow(U_d,-1.)+pow(U_c,-1.)
 print 'el coeficiente del factor de incrustación es:',R_d,'[m^2 °C/W]'
 e=time.time()
 print '***************************************************************'
